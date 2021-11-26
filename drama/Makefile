@@ -6,7 +6,7 @@ ODIR=src/.obj
 
 CFLAGS=-I$(IDIR) #-ggdb
 # CXX=g++
-LDFLAGS=
+LDFLAGS=-lrt -lpthread
 
 OUT=tester
 

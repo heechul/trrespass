@@ -345,6 +345,29 @@ void rev_mc(size_t sets_cnt, size_t threshold, size_t rounds, size_t m_size, cha
 
     srand((unsigned) time(&t));
 
+    {
+        uint64_t t0;
+        int rounds = 100;
+        uint64_t* time_vals = (uint64_t*) calloc(rounds, sizeof(uint64_t));
+        int i;
+        struct timespec ts;
+        ts.tv_sec = 0;
+        ts.tv_nsec = 30000;
+        for (i = 0; i < rounds; i++) {
+            mfence();
+            t0 = rdtscp();
+            clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
+            time_vals[i] = (uint64_t)(rdtscp() - t0);
+            lfence();
+        }
+        for (i = 0; i < rounds; i++) {
+            printf("%ld\n", time_vals[i]);
+        }
+        uint64_t mdn = median(time_vals, rounds);
+        printf("median=%ld\n", mdn);
+        free(time_vals);
+        // exit(1);
+    }
     if (flags & F_EXPORT) {
         if (o_file == NULL) {
             fprintf(stderr, "[ERROR] - Missing export file name\n");
