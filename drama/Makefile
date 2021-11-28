@@ -4,7 +4,7 @@ LDIR=lib
 BUILD=obj
 ODIR=src/.obj
 
-CFLAGS=-I$(IDIR) #-ggdb
+CFLAGS=-I$(IDIR) -ggdb
 # CXX=g++
 LDFLAGS=-lrt -lpthread
 

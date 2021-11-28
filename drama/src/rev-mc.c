@@ -331,6 +331,64 @@ uint64_t find_row_mask(std::vector<set_t>& sets, std::vector<uint64_t> fn_masks,
 
 }
 
+uint64_t timed_read(uint8_t *addr) {
+    uint64_t ns = counter;
+    
+    asm volatile (
+	"DSB SY\n"
+	"LDR X5, [%[ad]]\n"
+	"DSB SY\n"
+	: : [ad] "r" (addr) : "x5");
+    
+    return counter-ns;
+}
+
+uint8_t *probe;
+
+uint64_t measure_latency() {
+    uint64_t ns;
+    uint64_t min = 0xFFFFF;
+
+    for (int r = 0; r < 300; r++) {
+	clflush((void *)&probe[0]);
+	ns = timed_read(&probe[0]);
+	if (ns < min) min = ns;
+    }
+    
+    return min;
+}
+
+#if defined(__aarch64__)
+#include <pthread.h>
+uint64_t counter = 0;
+static pthread_t count_thread;
+
+static void *countthread(void *dummy) {
+	while (1) {
+		counter++;
+		// mfence();
+	}
+	return NULL;
+}
+
+#include <sys/mman.h>
+#include <stdint.h>
+static int start_counter()
+{
+	probe = (uint8_t*)mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+	assert(probe != MAP_FAILED);
+	int rr = pthread_create(&count_thread, 0, countthread , 0);
+	if (rr != 0) {
+		return -1;
+	}
+	fprintf(stderr, "[LOG} %s\n", "Waiting the counter thread...");
+	while(counter == 0) {
+		asm volatile("DSB SY");
+	}
+	fprintf(stderr, "[LOG] Done: %ld\n", counter);
+	return 0;
+}
+#endif // __aarch64__
 
 //----------------------------------------------------------
 void rev_mc(size_t sets_cnt, size_t threshold, size_t rounds, size_t m_size, char* o_file, uint64_t flags) {
@@ -345,18 +403,23 @@ void rev_mc(size_t sets_cnt, size_t threshold, size_t rounds, size_t m_size, cha
 
     srand((unsigned) time(&t));
 
+#if defined(__aarch64__)
+    if (counter == 0) start_counter();
+    printf("latency: %ld\n", measure_latency());
+#endif   
     {
         uint64_t t0;
-        int rounds = 100;
+        int rounds = 10;
+
         uint64_t* time_vals = (uint64_t*) calloc(rounds, sizeof(uint64_t));
         int i;
-        struct timespec ts;
-        ts.tv_sec = 0;
-        ts.tv_nsec = 30000;
+	volatile uint8_t *tmp_ptr = &probe[0];
         for (i = 0; i < rounds; i++) {
-            mfence();
+            // mfence();
+	    clflush((void *)tmp_ptr);
             t0 = rdtscp();
-            clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, NULL);
+	    lfence();
+	    *tmp_ptr;
             time_vals[i] = (uint64_t)(rdtscp() - t0);
             lfence();
         }
