@@ -61,16 +61,18 @@ static inline __attribute__((always_inline)) void lfence()
 #endif
 }
 
+#if defined(__aarch64__)
+#define TIMER_RESOLUTION_AMPLIFIER 25 /* 1 unit = 25 ns (?) */
+#else
+#define TIMER_RESOLUTION_AMPLIFIER 1
+#endif
 
 static inline __attribute__((always_inline)) uint64_t rdtscp(void)
 {
 #if defined(__aarch64__)
-	lfence();
-	return counter;
-	// uint64_t val;
-	// lfence();
-	// asm volatile("mrs %0, cntvct_el0" : "=r" (val));
-	// return val;
+        uint64_t val;
+	asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+	return val * TIMER_RESOLUTION_AMPLIFIER;
 #else
 	uint64_t lo, hi;
 	asm volatile("rdtscp\n"
@@ -84,11 +86,9 @@ static inline __attribute__((always_inline)) uint64_t rdtscp(void)
 static inline __attribute__((always_inline)) uint64_t rdtsc(void)
 {
 #if defined(__aarch64__)
-	lfence();
-	return counter;
-	// uint64_t val;
-	// asm volatile("mrs %0, cntvct_el0" : "=r" (val));
-	// return val;
+        uint64_t val;
+	asm volatile("mrs %0, cntvct_el0" : "=r" (val));
+	return val * TIMER_RESOLUTION_AMPLIFIER;
 #else
 	uint64_t lo, hi;
 	asm volatile("rdtsc\n"
